@@ -797,6 +797,13 @@ class VentanaPrincipal(QMainWindow):
     #---procesamiento de datos------------------------------------------------
     
     def procesar_datos(self,_NIVEL_BATERIA,_datos):
+        #??? 21/02/24
+        #calcula valor AC y DC para cada latido
+        #Calcular saturacion con 1 decimal
+        #Agregar timestap en primera columna
+        #Boton para icio de grabacion
+        #Almacebar los datos filtrados
+        
         """
         -Metodo asociado a la señal emitida por el hilo.
         -Recibe un Byte con el nivel de bateria en microvolts.
