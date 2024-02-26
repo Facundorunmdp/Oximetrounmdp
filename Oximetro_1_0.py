@@ -803,6 +803,7 @@ class VentanaPrincipal(QMainWindow):
         #Agregar timestap en primera columna
         #Boton para icio de grabacion
         #Almacebar los datos filtrados
+        # esto es un cambio
         
         """
         -Metodo asociado a la señal emitida por el hilo.
