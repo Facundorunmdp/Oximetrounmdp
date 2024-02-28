@@ -50,7 +50,7 @@ class VentanaPrincipal(QMainWindow):
     def __init__(self):
         super(VentanaPrincipal, self).__init__()
         self.ip = '192.168.4.1'      #'127.0.0.1' 192.168.4.1         
-        self.port = 9000  #esto es un atributo
+        self.port = 9000  #esto es un atributo        
         #-------ventana principal---------------------------
         loadUi('Oximetro_1_0.ui', self)
         #ocultamos los dockWidgets
@@ -752,7 +752,9 @@ class VentanaPrincipal(QMainWindow):
         #creamos2 punteros que seran los limites de nuestros datos a visualizar
         self.A= 0
         self.B = self.NP20_seg
-       
+        self.N = 0 #! CORREGIR NOMBRE PORQUE SINO NO VAS A SABER QUE ES!!!! (RODRI)
+        self.P = 0 #??? CONTADOR DE PAQUETES
+        self.min = []
         #--generacion coeficientes de filtros----------
         #--Filtro Notch-------------------------------------
         numtaps_seg=3.3/0.5
@@ -825,13 +827,13 @@ class VentanaPrincipal(QMainWindow):
         None.
 
         """
-        
+        self.P += 1
         _datos = _datos #* -1 #negamos los datos por una cuestion de visualizacion
                 
         _datos = _datos.T # trasponemos por compatibilidad con el graficador (2,100) 
        
         #agregamos la matriz de datos (2,100) a la matriz self.dataY        
-        self.dataY = np.append(self.dataY, _datos, axis=1)  
+        self.dataY = np.append(self.dataY, _datos, axis=1)          
         
         #generamos el vector temporal en funcion del tamaño del paquete y la fecuencia de muestreo
         num_muestras = self.dataY.shape[1]
@@ -855,6 +857,11 @@ class VentanaPrincipal(QMainWindow):
         # Genero una copia de 20segundos de datos
         self._copy = self.dataY[:,self.A:self.B] 
         
+        if self.P == 5:
+            self.P = 0
+            min = self.calcular_limite(self.dataY[1:-500:])
+            self.actualizar_vector_limites(min)
+            
         
         
         #---APLICACION DE FILTROS----------------------------------------------
@@ -862,10 +869,8 @@ class VentanaPrincipal(QMainWindow):
             self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
             
         
-        #calculamos la posicion de los maximos y minimos
-        self.max, _max = find_peaks((self._copy[1,:]), distance=300)
-        self.min, _min = find_peaks((-1*self._copy[1,:]), distance=300)
         
+        """ 
         #print("PPM: ",len(self.max)*3)
         self.continua=self._copy
         #print(self._copy.shape[1])
@@ -887,7 +892,7 @@ class VentanaPrincipal(QMainWindow):
                 self.promedio_ac = np.mean(self.valores_ac)
                 self.promedio_dc = np.mean(self.valores_dc)
                 #print("promedio dc")
-                
+          """
         
         """
         print("tamaño continua: ",self.continua.shape[0])
@@ -919,7 +924,19 @@ class VentanaPrincipal(QMainWindow):
     
     #-----------metodos de ejecucion de los timeout de los timer---------------
        
-    
+    def calcular_limite(self, data):
+        #calculamos la posicion de los maximos y minimos de las ultimos N muestras 
+        # N = len(data)
+        _max, _ = find_peaks(data[1,:], distance=300) # [0, len(data)] + 1segundo
+        _min, _ = find_peaks(-data[1,:], distance=300)        
+        return _min
+
+    def actualizar_vector_limites(self,minimos):     
+        minimos += self.N
+        self.min = np.append(self.min,minimos)
+        self.N += 500
+        
+
         #---Actualiza los datos de los graficos------
     def update_plot_data(self):
         """
@@ -938,7 +955,9 @@ class VentanaPrincipal(QMainWindow):
             #print("voy a graficar")
             self.curva_rojo.setData(x[self.A:self.B], self._copy[0,:])
             self.curva_irojo.setData(x[self.A:self.B], self._copy[1,:])
-            self.curva_continua.setData(x[self.min], self.continua[1,self.min])
+            
+            self.curva_continua.setData(x[self.min], self.dataY[1,self.min])
+            
             for i in range(self.numero_canales): #self.numero_canales = 2
                 self.canales_psd[i].setData(x , self._copy[i,:])
                
