@@ -182,7 +182,7 @@ class VentanaPrincipal(QMainWindow):
         print("cargar datos")
         #debe reemplazarse .CSV por .xlsx que sera el nuevo formato de almacenamiento
         #luego utilizar pd.read_excel('data.xlsx') para cargar los datos
-        self.archivo_offline, _ = QFileDialog.getOpenFileName(self, 'Abrir archivo', 'C:/', 'Text files (*.xlsx)')
+        self.archivo_offline, _ = QFileDialog.getOpenFileName(self, 'Abrir archivo', 'C:/', 'Text files (*.xlsx , *.xls)')
         print(self.archivo_offline,"\n", _)
         pass
      
@@ -801,9 +801,8 @@ class VentanaPrincipal(QMainWindow):
         #calcula valor AC y DC para cada latido
         #Calcular saturacion con 1 decimal
         #Agregar timestap en primera columna
-        #Boton para icio de grabacion
-        #Almacebar los datos filtrados
-        # esto es un cambio
+        #Boton para inicio de grabacion
+        #Almacenar los datos filtrados
         
         """
         -Metodo asociado a la señal emitida por el hilo.
@@ -829,10 +828,11 @@ class VentanaPrincipal(QMainWindow):
         
         _datos = _datos #* -1 #negamos los datos por una cuestion de visualizacion
                 
-        _datos = _datos.T # trasponemos por compat con el graficador (2,100) 
+        _datos = _datos.T # trasponemos por compatibilidad con el graficador (2,100) 
        
         #agregamos la matriz de datos (2,100) a la matriz self.dataY        
         self.dataY = np.append(self.dataY, _datos, axis=1)  
+        
         #generamos el vector temporal en funcion del tamaño del paquete y la fecuencia de muestreo
         num_muestras = self.dataY.shape[1]
         frecuencia_muestreo = self.sFreq  #Frecuencia de muestreo Hz
@@ -846,16 +846,21 @@ class VentanaPrincipal(QMainWindow):
             self.autorange += 1
             pass
         
-        if self.autorange == 1: #ajustamos el eje de visualizacion
+        if self.autorange == 1: #ajustamos el eje de visualizacion en automatico
             self.gvtemporal.enableAutoRange(axis='xy')
             #self.gvtemporal_1.enableAutoRange(axis='xy')
             self.gvtemporal_2.enableAutoRange(axis='xy')
         
        
         # Genero una copia de 20segundos de datos
-        self._copy = self.dataY[:,self.A:self.B]
-        #if self.autorange == 0:
-            #print(self._copy)
+        self._copy = self.dataY[:,self.A:self.B] 
+        
+        
+        
+        #---APLICACION DE FILTROS----------------------------------------------
+        if self.ckpasabanda.isChecked():
+            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
+            
         
         #calculamos la posicion de los maximos y minimos
         self.max, _max = find_peaks((self._copy[1,:]), distance=300)
@@ -892,6 +897,7 @@ class VentanaPrincipal(QMainWindow):
         print("tamaño -B-A: ",self.B ," : ", self.A)
         """
         #---APLICACION DE FILTROS----------------------------------------------
+        """
         if self.ckpasabanda.isChecked():
             #start1 = time.time()
             self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
@@ -902,7 +908,7 @@ class VentanaPrincipal(QMainWindow):
             self._copy = mne.filter._overlap_add_filter(self._copy,self.b_notch)
                  
         
-        
+        """
         
         #--flag q indica la disponibilidad de datos para graficar--------------
         self.flag_datos= True
@@ -918,7 +924,7 @@ class VentanaPrincipal(QMainWindow):
     def update_plot_data(self):
         """
         -timeout del timer1.
-        -Genera el vector temporal 
+        -Genera el vector temporal
         -Actualiza las curvas de los graficos temporal y FFT
         -Actualiza el nivel de bateria
         
@@ -1041,8 +1047,8 @@ class VentanaPrincipal(QMainWindow):
         continua = datos
         
         #----Procesamiento de datos--------------------------------------------
-        #peaks, _ = find_peaks(datos, distance=150)
-        _window = self.cbfiltro.currentText() #seleccion del tipo de ventana del filtro
+        #seleccion del tipo de ventana del filtro
+        _window = self.cbfiltro.currentText()
         print(_window)
         a=[4,5,6,7] #Para que las curvas originales y filtradas tengan distinto color
         
@@ -1051,22 +1057,25 @@ class VentanaPrincipal(QMainWindow):
         numtaps = int(numtaps_seg*sFreq) #int(numtaps_seg*sFreq +1)
         if numtaps % 2 == 0:
             numtaps =int(numtaps + 1)
-        #--generacion coefiientes del filtra pasabanda------------
+        
+        #--generacion coeficientes del filtra pasabanda------------
         lfreq = float(self.txtpasabandainf.text())
         hfreq = float(self.txtpasabandasup.text())
         if lfreq <= 0:
             lfreq = 0.1
         passband = [lfreq , hfreq] #, width=0.5 #,window='hamming' , pass_zero='bandpass'
         b_bandpass = signal.firwin(numtaps, passband, window=_window,  pass_zero='bandpass' , fs=sFreq)
-        print(type(datos[1,1]))
-        print(datos[:,1:3])
+        
+        #Aplicacion del filtro
         if self.ckpasabanda.isChecked():
             #datos1 = signal.fftconvolve(datos[1,:], b_bandpass, mode='same')
             datos = mne.filter._overlap_add_filter(datos,b_bandpass)
             filtrado = True
             a=[0,1,2,3]
-        #print(datos1)
+        
+        
         #--generacion coeficientes de filtro notch----------
+        """
         numtaps_notch_seg=3.3/0.5
         numtaps_notch = int(numtaps_notch_seg*sFreq) #int(numtaps_seg*sFreq +1)
         if numtaps_notch % 2 == 0:
@@ -1082,6 +1091,7 @@ class VentanaPrincipal(QMainWindow):
             #print("tiempo total",float(tiempo*1000))
             filtrado = True
             a=[0,1,2,3]
+            """
         #----------------Fin aplicacion de filtros------------------------------------------------------       
        
         
@@ -1093,7 +1103,8 @@ class VentanaPrincipal(QMainWindow):
         self.min, _min = find_peaks((-1*continua[1,:]), distance=300)
         total = time.time() - start
         print(len(self.max), len(self.min))
-        #print(continua[1,self.min[len(self.max)-2]])
+        print("maximos: \n",self.max)
+        print("minimos: \n",self.min)
         
         #val_ac=((continua[1,self.min[len(self.max)-2]] - continua[1,self.max[len(self.max)-2]])/continua[1,self.min[len(self.max)-2]])
         #val_dc= ((continua[1,self.max[len(self.max)-2]])/continua[1,self.min[len(self.max)-2]])
@@ -1133,12 +1144,12 @@ class VentanaPrincipal(QMainWindow):
         #self.curva_minimos.setData(x[self.min], continua[1,self.min])
         QApplication.processEvents() #ejecuta los preocesos en cola de modo q la aplicacion responda
         
-        start = time.time()
+        #start = time.time()
         for i in range(2): #self.numero_canales
             #curvas[i].setData(x,datos[i,:])
             curvas_psd[i].setData( x , datos[i,:]) #fftMode=True
-        total = time.time() - start
-        print(total)
+        #total = time.time() - start
+        #print(total)
         
         
         
