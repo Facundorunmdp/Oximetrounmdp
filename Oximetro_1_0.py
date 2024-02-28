@@ -856,17 +856,19 @@ class VentanaPrincipal(QMainWindow):
        
         # Genero una copia de 20segundos de datos
         self._copy = self.dataY[:,self.A:self.B] 
-        
+        #---APLICACION DE FILTROS----------------------------------------------
+        if self.ckpasabanda.isChecked():
+            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
         if self.P == 5:
             self.P = 0
-            min = self.calcular_limite(self.dataY[1:-500:])
-            self.actualizar_vector_limites(min)
+            minim = self.calcular_minimos(self.dataY[:,-500:])
+            self.actualizar_vector_minimos(minim)
             
         
         
         #---APLICACION DE FILTROS----------------------------------------------
-        if self.ckpasabanda.isChecked():
-            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
+        #if self.ckpasabanda.isChecked():
+            #self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
             
         
         
@@ -924,19 +926,33 @@ class VentanaPrincipal(QMainWindow):
     
     #-----------metodos de ejecucion de los timeout de los timer---------------
        
-    def calcular_limite(self, data):
-        #calculamos la posicion de los maximos y minimos de las ultimos N muestras 
-        # N = len(data)
+    def calcular_minimos(self, data):
+        """
+        Recibe las ultimas 500 muestras adquiridas.
+        calculamos la posicion de los maximos y minimos de las ultimos N muestras 
+         N = len(data); 
+         Return: vector unidimensional 1x500"""
         _max, _ = find_peaks(data[1,:], distance=300) # [0, len(data)] + 1segundo
         _min, _ = find_peaks(-data[1,:], distance=300)        
+        print(len(_min))
+        print(type(_min[0]))
+        print(_min)
         return _min
-
-    def actualizar_vector_limites(self,minimos):     
-        minimos += self.N
-        self.min = np.append(self.min,minimos)
+            
+    def actualizar_vector_minimos(self, minimos):     
+        """"
+        Recibe vector de minimos de las ultimas 500 muestras adquiridas.
+        debe tomar el vector de _min de 1x500 e ir appendeandolos modificando su posicion
+        de modo de volver a su posicion absoluta 
+        """
+        minimos += self.N  
+        #minimos= minimos.astype(int)
+        self.min = np.append(self.min , minimos,axis=0); #
+        self.min = self.min.astype(int)
         self.N += 500
+        print(type(self.min[1])," - ",len(self.min))    
+        print(self.min)
         
-
         #---Actualiza los datos de los graficos------
     def update_plot_data(self):
         """
