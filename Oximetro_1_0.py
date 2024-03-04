@@ -718,7 +718,8 @@ class VentanaPrincipal(QMainWindow):
         self.curva_rojo = self.gvtemporal.plot(pen = 'r', name=('LED_ROJO'))
         self.curva_irojo = self.gvtemporal.plot(pen = 'b', name=('LED_INFRAROJO'))
         self.curva_continua = self.gvtemporal_2.plot(pen = 'k', name=('Snagre estacionaria'))
-        
+        self.curva_minimos = self.gvtemporal.plot(pen=None,symbol='t',name=('Minimos'))
+        self.curva_maximos = self.gvtemporal.plot(pen=None,symbol='o',name=('Maximo'))
         for i in range(self.numero_canales):#creamos curvas FFT
             d = self.gvfft.plot(pen = color_led[i],name=(names[i],2-i))
             self.gvfft.addItem(d)
@@ -754,7 +755,11 @@ class VentanaPrincipal(QMainWindow):
         self.B = self.NP20_seg
         self.N = 0 #! CORREGIR NOMBRE PORQUE SINO NO VAS A SABER QUE ES!!!! (RODRI)
         self.P = 0 #??? CONTADOR DE PAQUETES
-        self.min = []
+        self.min = np.array([])
+        self.min = self.min.astype(int)
+        self.max = np.array([])
+        self.max = self.max.astype(int)
+        self.ult_min = int(0)
         #--generacion coeficientes de filtros----------
         #--Filtro Notch-------------------------------------
         numtaps_seg=3.3/0.5
@@ -766,7 +771,7 @@ class VentanaPrincipal(QMainWindow):
         self.b_notch = signal.firwin(numtaps_notch, stopband,pass_zero='bandstop', fs=self.sFreq)
         
         #--pasa banda-----------------------------
-        numtaps_seg=3.3/1
+        _window = self.cbfiltro.currentText();numtaps_seg=3.3/1
         numtaps_pb = int(numtaps_seg*self.sFreq)
         if numtaps_pb % 2 == 0:
             numtaps_pb = int(numtaps_pb + 1)
@@ -776,7 +781,9 @@ class VentanaPrincipal(QMainWindow):
         if self.lfreq <= 0:
             self.lfreq = 0.1
         passband = [self.lfreq , self.hfreq]
-        self.b_bandpass = signal.firwin(numtaps_pb, passband,window='hamming', pass_zero='bandpass', fs=self.sFreq)
+        passband = self.hfreq
+        #!!! modifico passband y pass_zero={True, False, 'bandpass', 'lowpass', 'highpass', 'bandstop'}
+        self.b_bandpass = signal.firwin(numtaps_pb, passband,window=_window, pass_zero=True, fs=self.sFreq)
         
         print("coeficientes de filtros calculados")
         
@@ -828,8 +835,8 @@ class VentanaPrincipal(QMainWindow):
 
         """
         self.P += 1
-        _datos = _datos #* -1 #negamos los datos por una cuestion de visualizacion
-                
+        _datos = _datos * -1 #negamos los datos por una cuestion de visualizacion
+        #_datos = np.abs(_datos)       
         _datos = _datos.T # trasponemos por compatibilidad con el graficador (2,100) 
        
         #agregamos la matriz de datos (2,100) a la matriz self.dataY        
@@ -853,17 +860,30 @@ class VentanaPrincipal(QMainWindow):
             #self.gvtemporal_1.enableAutoRange(axis='xy')
             self.gvtemporal_2.enableAutoRange(axis='xy')
         
-       
-        # Genero una copia de 20segundos de datos
-        self._copy = self.dataY[:,self.A:self.B] 
+        #---APLICACION DE FILTROS----------------------------------------------
+        #if self.ckpasabanda.isChecked():
+        #    self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
+        
+        # Genero una copia de 2segundos de datos
+        #self._copy = self.dataY[:,self.A:self.B] 
+        if len(self.dataY) <= 1000:
+            self.filtrado = mne.filter._overlap_add_filter(self.dataY,self.b_bandpass)
+        else:
+            filt =  mne.filter._overlap_add_filter(self.dataY[:,-1000:],self.b_bandpass)[:,-100:]
+            self.filtrado = np.append(self.filtrado,filt)
+            
+            pass
+        """
         #---APLICACION DE FILTROS----------------------------------------------
         if self.ckpasabanda.isChecked():
             self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
+        """
         if self.P == 5:
             self.P = 0
-            minim = self.calcular_minimos(self.dataY[:,-500:])
-            self.actualizar_vector_minimos(minim)
-            
+            minim, maxim = self.calcular_minimos(self.filtrado[:,-500:])
+            self.actualizar_vector_minimos(minim,maxim)
+        #else:
+            #print("p=", self.P)
         
         
         #---APLICACION DE FILTROS----------------------------------------------
@@ -894,7 +914,7 @@ class VentanaPrincipal(QMainWindow):
                 self.promedio_ac = np.mean(self.valores_ac)
                 self.promedio_dc = np.mean(self.valores_dc)
                 #print("promedio dc")
-          """
+        """
         
         """
         print("tamaño continua: ",self.continua.shape[0])
@@ -932,26 +952,49 @@ class VentanaPrincipal(QMainWindow):
         calculamos la posicion de los maximos y minimos de las ultimos N muestras 
          N = len(data); 
          Return: vector unidimensional 1x500"""
-        _max, _ = find_peaks(data[1,:], distance=300) # [0, len(data)] + 1segundo
-        _min, _ = find_peaks(-data[1,:], distance=300)        
-        print(len(_min))
-        print(type(_min[0]))
-        print(_min)
-        return _min
+        _max, _ = find_peaks(data[1,:], distance=200) # [0, len(data)] + 1segundo
+        _min, _ = find_peaks(-data[1,:], distance=200)        
+        #print(len(_min))
+        #print(type(_min[0]))
+        #print(_max)
+        return _min, _max
             
-    def actualizar_vector_minimos(self, minimos):     
+    def actualizar_vector_minimos(self, minimos, maximos):     
         """"
         Recibe vector de minimos de las ultimas 500 muestras adquiridas.
         debe tomar el vector de _min de 1x500 e ir appendeandolos modificando su posicion
         de modo de volver a su posicion absoluta 
         """
         minimos += self.N  
-        #minimos= minimos.astype(int)
-        self.min = np.append(self.min , minimos,axis=0); #
+        #print("minimos =", len(minimos))
+        if self.min.any() and len(minimos)!=0 and minimos[0] - self.min[-1]  < 300: 
+            self.min = np.append(self.min , minimos[1:],axis=0)
+        else:
+            self.min = np.append(self.min , minimos,axis=0)
+        
         self.min = self.min.astype(int)
+        #print("minimos =", len(minimos))
+        
+        maximos += self.N  
+        
+        if self.max.any() and len(maximos)!=0 and maximos[0] - self.max[-1] < 300: 
+            self.max = np.append(self.max , maximos[1:],axis=0)
+        else:
+            self.max = np.append(self.max , maximos,axis=0)
+        
+        self.max = self.max.astype(int)
+        #print("maximos =", len(maximos))
+        vector_line = pg.InfiniteLine(pos=self.N/self.sFreq, angle=90, movable=False);
+        self.gvtemporal.addItem(vector_line)
+        
+        self.ult_min =int( self.dataY.shape[1] -1 - self.min[-1])
+        print("ultimo minimo= ",self.ult_min)
+        print("N= ",self.N)
+        print("len dataY= ",self.dataY.shape[1])    
+        print("posicion ultmimo minimo= ", self.min[-1])
+        
         self.N += 500
-        print(type(self.min[1])," - ",len(self.min))    
-        print(self.min)
+        
         
         #---Actualiza los datos de los graficos------
     def update_plot_data(self):
@@ -971,6 +1014,9 @@ class VentanaPrincipal(QMainWindow):
             #print("voy a graficar")
             self.curva_rojo.setData(x[self.A:self.B], self._copy[0,:])
             self.curva_irojo.setData(x[self.A:self.B], self._copy[1,:])
+            
+            self.curva_minimos.setData(x[self.min[-20:]], self.dataY[1,self.min[-20:]])
+            self.curva_maximos.setData(x[self.max[-20:]], self.dataY[1,self.max[-20:]])
             
             self.curva_continua.setData(x[self.min], self.dataY[1,self.min])
             
