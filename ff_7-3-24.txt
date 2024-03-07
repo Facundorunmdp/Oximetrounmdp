@@ -1,0 +1,8 @@
+Fecha: jueves 07-03-2024 13:26 
+Frecuencia de muestreo 
+500
+Observaciones: 
+RF= 500k
+CF= 250 pF
+led1= 25
+led2= 25
