@@ -1242,8 +1242,9 @@ class VentanaPrincipal(QMainWindow):
         #buscamos max y min de los 20segundos--------
         
         #start = time.time() #,threshold= 1000
-        self.max, _max = find_peaks((datos[1,:]) , distance=500)
-        self.min, _min = find_peaks((-1*datos[1,:]), distance=500)
+        _height = 500
+        self.max, _max = find_peaks((datos[1,:]), height= _height , distance=300)
+        self.min, _min = find_peaks((-1*datos[1,:]), height= _height, distance=300)
         #total = time.time() - start
         print(len(self.max), len(self.min))
         #print("maximos: \n",self.max)
