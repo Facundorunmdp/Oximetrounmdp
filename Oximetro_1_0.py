@@ -535,7 +535,7 @@ class VentanaPrincipal(QMainWindow):
         
         #☺aca debemos copiar los datos de csv a xlsx
         archivo_excel = self.archivo_configuracion.replace(".txt","_datos.xlsx")
-        self.dataY=mne.filter._overlap_add_filter( self.dataY,self.b_bandpass)
+        #self.dataY=mne.filter._overlap_add_filter( self.dataY,self.b_bandpass)
         
         
         
@@ -790,7 +790,7 @@ class VentanaPrincipal(QMainWindow):
         passband = [self.lfreq , self.hfreq]
         #passband = self.hfreq
         #!!! modifico passband y pass_zero={True, False, 'bandpass', 'lowpass', 'highpass', 'bandstop'}
-        self.b_bandpass = signal.firwin(numtaps_pb, passband,window=_window, pass_zero='bandpass', fs=self.sFreq)
+        self.b_bandpass = signal.firwin(numtaps_pb, passband,window=_window, pass_zero= 'bandpass', fs=self.sFreq)
         
         print("coeficientes de filtros calculados")
         
@@ -885,11 +885,7 @@ class VentanaPrincipal(QMainWindow):
         else:
             self.filtrado = self.dataY
             
-        """
-        #---APLICACION DE FILTROS----------------------------------------------
-        if self.ckpasabanda.isChecked():
-            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
-        """
+        
         if self.P == 5:
             self.P = 0
             minimIR, maximIR, minimR, maximR = self.calcular_minimos(self.filtrado[:,-500:])
@@ -904,51 +900,6 @@ class VentanaPrincipal(QMainWindow):
             
         
         
-        """ 
-        #print("PPM: ",len(self.max)*3)
-        self.continua=self._copy
-        #print(self._copy.shape[1])
-        
-        if self._copy.shape[1] > self.dos_seg*6:
-            self.promediar = True
-            # Inicializar una lista para almacenar los valores entre los máximos y mínimos
-            self.valores_ac = []
-            self.valores_dc = []
-            for min_index, max_index in zip(self.min[10:-1], self.max[10:-1]):
-                # Calcular la expresión para val_ac
-                val_ac = ((abs(self.continua[1, max_index] - self.continua[1, min_index])) / abs(self.continua[1, max_index]))
-                val_dc = 1 - val_ac #((abs(self.continua[1,min_index]))/abs(self.continua[1,max_index]))
-    
-                # Agregar el resultado a la lista
-                self.valores_ac.append(val_ac)
-                self.valores_dc.append(val_dc)
-            if len(self.valores_ac) > 0:
-                self.promedio_ac = np.mean(self.valores_ac)
-                self.promedio_dc = np.mean(self.valores_dc)
-                #print("promedio dc")
-        """
-        
-        """
-        print("tamaño continua: ",self.continua.shape[0])
-       
-        print("tamaño dataY: ",self.dataY.shape[1])
-        print("tamaño _copy: ",self._copy.shape[1])
-        print("tamaño -B-A: ",self.B ," : ", self.A)
-        """
-        #---APLICACION DE FILTROS----------------------------------------------
-        """
-        if self.ckpasabanda.isChecked():
-            #start1 = time.time()
-            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_bandpass)
-            #tiempo2 = time.time()- start1
-            #print("filtrar datos-----")
-        
-        if self.cknotch.isChecked():
-            self._copy = mne.filter._overlap_add_filter(self._copy,self.b_notch)
-                 
-        
-        """
-        
         #--flag q indica la disponibilidad de datos para graficar--------------
         self.flag_datos= True
         self.nivelbateria= _NIVEL_BATERIA
@@ -956,7 +907,7 @@ class VentanaPrincipal(QMainWindow):
     #--------------------------------------------------------------------------
     
     
-    #-----------metodos de ejecucion de los timeout de los timer---------------
+    
        
     def calcular_minimos(self, data):
         """
@@ -964,11 +915,12 @@ class VentanaPrincipal(QMainWindow):
         calculamos la posicion de los maximos y minimos de las ultimos N muestras 
          N = len(data); 
          Return: vector unidimensional 1x500"""
-        _maxIR, _ = find_peaks(data[1,:], distance=300) # [0, len(data)] + 1segundo
-        _minIR, _ = find_peaks(-data[1,:], distance=300)        
+        _height = 500
+        _maxIR, _ = find_peaks(data[1,:], height= _height, distance=300) # [0, len(data)] + 1segundo
+        _minIR, _ = find_peaks(-data[1,:], height= _height, distance=300)        
         
-        _maxR, _ = find_peaks(data[0,:], distance=300) # [0, len(data)] + 1segundo
-        _minR, _ = find_peaks(-data[0,:], distance=300)  
+        _maxR, _ = find_peaks(data[0,:],height= _height, distance=300) # [0, len(data)] + 1segundo
+        _minR, _ = find_peaks(-data[0,:],height= _height, distance=300)  
         
         #print(len(_min))
         #print(type(_min[0]))
@@ -1042,7 +994,8 @@ class VentanaPrincipal(QMainWindow):
         self.maxR = self.maxR.astype(int)
         #print("maximos =", len(maximos))
         
-        self.calcular_oximetria(self.minIR[-1],self.minR[-1])
+        if self.minIR.any() and self.minR[-1]  :
+            self.calcular_oximetria(self.minIR[-1], self.minR[-1])
         
         """
         linea = pg.InfiniteLine(pos=self.N/self.sFreq, angle=90, movable=False)
@@ -1071,11 +1024,13 @@ class VentanaPrincipal(QMainWindow):
         DELTAR = abs(ACR/DCR)
         #print(DELTAR)
         self.R = DELTAR/DELTAIR
-        #print("R=  ",(DELTAR/DELTAIR))
+        print("R=  ",(DELTAR/DELTAIR))
         
         pass
         
-        #---Actualiza los datos de los graficos------
+    #-----------metodos de ejecucion de los timeout de los timer---------------
+        
+    #---Actualiza los datos de los graficos------
     def update_plot_data(self):
         """
         -timeout del timer1.
@@ -1223,8 +1178,9 @@ class VentanaPrincipal(QMainWindow):
         hfreq = float(self.txtpasabandasup.text())
         if lfreq <= 0:
             lfreq = 0.1
-        passband = [lfreq , hfreq] #, width=0.5 #,window='hamming' , pass_zero='bandpass'
-        b_bandpass = signal.firwin(numtaps, passband, window=_window,  pass_zero='bandpass' , fs=sFreq)
+        passband = [lfreq , hfreq] #, width=0.5 #,window='hamming' ,pass_zero={True, False, 'bandpass', 'lowpass', 'highpass', 'bandstop'}
+        #passband = hfreq
+        b_bandpass = signal.firwin(numtaps, passband, window=_window,  pass_zero=False , fs=sFreq)
         
         #Aplicacion del filtro
         if self.ckpasabanda.isChecked():
@@ -1264,6 +1220,11 @@ class VentanaPrincipal(QMainWindow):
         curvas_psd = []
         x = np.arange(N) / sFreq
         
+        #-----DERIVADA----------------------------------------------------------
+        # Calcular la derivada
+        derivada = np.diff(datos[1,:]) / np.diff(x)
+        #----------------------------------------------------------------------
+        
         self.curva_rojo = self.gvtemporal.plot(pen = 'r', name=('LED_ROJO'))
         self.curva_irojo = self.gvtemporal.plot(pen = 'b', name=('LED_INFRAROJO'))
         
@@ -1286,6 +1247,9 @@ class VentanaPrincipal(QMainWindow):
         self.curva_irojo.setData(x, datos[1,:])
         
         self.curva_continua.setData(x[self.min], continua[1,self.min])
+        
+        #derivada-------------------------------------
+        #self.curva_continua.setData(x[:-1], derivada)
         
         self.curva_minimos.setData(x[self.min], datos[1,self.min])
         self.curva_maximos.setData(x[self.max], datos[1,self.max])
