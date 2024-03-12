@@ -269,7 +269,7 @@ class VentanaPrincipal(QMainWindow):
         if self.ckmodo_offline.isChecked():#, header=None
             df1 = pd.read_excel(self.archivo_offline)
             y = np.array(df1)
-            encabezado=y[0,:]
+            encabezado=y[0,1:3]
             canales = [int(x) for x in encabezado if np.isnan(x) == False]
             print(canales)
             archivotxt = self.archivo_offline.replace("_datos.xlsx",".txt")
@@ -514,6 +514,10 @@ class VentanaPrincipal(QMainWindow):
         -si el checkbox de guardar datos esta seleccionado, crear el archivo 
         CSV donde se guardaran los datos
         """
+        print('len minIR= ',len(self.minIR))
+        print('len maxIR= ',len(self.maxIR))
+        print('len ACIR= ',len(self.ACIR))
+        
         # esto deberia desplegarse al presionar detener
         #y guardar el archivo (.txt) y temporal csv como xlsx
         time_=QDateTime.currentDateTime()
@@ -536,10 +540,27 @@ class VentanaPrincipal(QMainWindow):
         #☺aca debemos copiar los datos de csv a xlsx
         archivo_excel = self.archivo_configuracion.replace(".txt","_datos.xlsx")
         #self.dataY=mne.filter._overlap_add_filter( self.dataY,self.b_bandpass)
+        DCR = np.full_like(self.dataY[0,:], np.nan)
+        DCR[self.minIR] = self.dataY[0,self.minIR] 
+        DCIR = np.full_like(self.dataY[1,:], np.nan)
+        DCIR[self.minIR] = self.dataY[1,self.minIR]
+        
+        ACR = np.full_like(self.dataY[1,:], np.nan)
+        ACR[self.minIR] = self.ACR[:]
+        ACIR = np.full_like(self.dataY[1,:], np.nan)
+        ACIR[self.minIR] = self.ACIR[:]
+        R = np.full_like(self.dataY[1,:], np.nan)
+        R[self.minIR] = self.R[:]
+        
+        print('len_minIR= ',len(self.minIR))
+        print('len_ACIR= ',len(self.ACIR))
+        #print('len_minR= ',len(self.minR))
+        print('len_ACR= ',len(self.ACR))
+        
+        self.data = np.vstack((self.vector_tiempo ,self.dataY ,DCR ,DCIR, ACR, ACIR,R)) #, ACR, ACIR
         
         
-        
-        dataframe = pd.DataFrame(self.dataY.T,columns=['LED_ROJO', 'LED_INFRAROJO'])
+        dataframe = pd.DataFrame(self.data.T,columns=['Tiempo','LED_R', 'LED_IR', 'DCR', 'DCIR','ACR','ACIR', 'R']) #,'ACR','ACIR'
         
         
         
@@ -634,7 +655,7 @@ class VentanaPrincipal(QMainWindow):
         None.
 
         """
-        #??? aca deberiamos preguntar si desea guardar los datos y llamar a guardar_prueba
+        # aca deberiamos preguntar si desea guardar los datos y llamar a guardar_prueba
         self.comando = 'detener'
         print("detenido") #debuger
         self.timer1.stop()
@@ -722,6 +743,9 @@ class VentanaPrincipal(QMainWindow):
         self.curva_continua = self.gvtemporal_2.plot(pen = 'k', name=('Snagre estacionaria'))
         self.curva_minimos = self.gvtemporal.plot(pen=None,symbol='t',name=('Minimos'))
         self.curva_maximos = self.gvtemporal.plot(pen=None,symbol='o',name=('Maximo'))
+        self.curva_minimosR = self.gvtemporal.plot(pen=None,symbol='t',name=('Minimos'))
+        self.curva_maximosR = self.gvtemporal.plot(pen=None,symbol='o',name=('Maximo'))
+        
         for i in range(self.numero_canales):#creamos curvas FFT
             d = self.gvfft.plot(pen = color_led[i],name=(names[i],2-i))
             self.gvfft.addItem(d)
@@ -742,7 +766,7 @@ class VentanaPrincipal(QMainWindow):
         self.sFreq = float(self.txtPRF.text())
         self.timer1.start()
         
-        #??? Habria que limpiar variables q no se utilizan y verificar extremo izq de los punteros
+        #? Habria que limpiar variables q no se utilizan y verificar extremo izq de los punteros
         #configuramos variables y buffers q almacenen los datos 
         self.NP20_seg = int(self.sFreq * 20)#cantidad de muestras segun frec de muestreo para 20 seg de datos
         self.mveinte = int(-1*self.NP20_seg)
@@ -756,17 +780,18 @@ class VentanaPrincipal(QMainWindow):
         self.A= 0
         self.B = self.NP20_seg
         self.N = 0 #! CORREGIR NOMBRE PORQUE SINO NO VAS A SABER QUE ES!!!! (RODRI)
-        self.P = 0 #??? CONTADOR DE PAQUETES
-        self.minIR = np.array([])
-        self.minIR = self.minIR.astype(int)
-        self.maxIR = np.array([])
-        self.maxIR = self.maxIR.astype(int)
-        self.minR = np.array([])
-        self.minR = self.minR.astype(int)
-        self.maxR = np.array([])
-        self.maxR = self.maxR.astype(int)
+        self.P = 0 #?CONTADOR DE PAQUETES
+        self.minIR = np.array([]) ; self.minIR = self.minIR.astype(int)
+        self.maxIR = np.array([]) ; self.maxIR = self.maxIR.astype(int)
+        self.minR = np.array([]) ; self.minR = self.minR.astype(int)
+        self.maxR = np.array([]) ;self.maxR = self.maxR.astype(int)
+        self.ACR = np.array([]).astype(int) #vector valores AC canal rojo 
+        self.ACIR = np.array([]).astype(int) #vector valores AC canal Infrarojo
+        self.R = []  #vector de cocientes de oximetria
+        self.R0 = 0   #puntero para visualizar valor de self.R
         self.ult_min = int(0)
         self.vector_line=[]
+        self.PPM = 60
         #--generacion coeficientes de filtros----------
         #--Filtro Notch-------------------------------------
         numtaps_seg=3.3/0.5
@@ -789,7 +814,7 @@ class VentanaPrincipal(QMainWindow):
             self.lfreq = 0.1
         passband = [self.lfreq , self.hfreq]
         #passband = self.hfreq
-        #!!! modifico passband y pass_zero={True, False, 'bandpass', 'lowpass', 'highpass', 'bandstop'}
+        #! modifico passband y pass_zero={True, False, 'bandpass', 'lowpass', 'highpass', 'bandstop'}
         self.b_bandpass = signal.firwin(numtaps_pb, passband,window=_window, pass_zero= 'bandpass', fs=self.sFreq)
         
         print("coeficientes de filtros calculados")
@@ -813,7 +838,7 @@ class VentanaPrincipal(QMainWindow):
     #---procesamiento de datos------------------------------------------------
     
     def procesar_datos(self,_NIVEL_BATERIA,_datos):
-        #??? 21/02/24
+        #?? 21/02/24
         #calcula valor AC y DC para cada latido
         #Calcular saturacion con 1 decimal
         #Agregar timestap en primera columna
@@ -888,8 +913,20 @@ class VentanaPrincipal(QMainWindow):
         
         if self.P == 5:
             self.P = 0
-            minimIR, maximIR, minimR, maximR = self.calcular_minimos(self.filtrado[:,-500:])
-            self.actualizar_vector_minimos(minimIR, maximIR, minimR, maximR)
+            if len(self.maxIR) > 0 and len(self.minIR) > 0:
+                self.last_peak = max(self.maxIR[-1], self.minIR[-1]) 
+                
+            
+            elif len(self.maxIR) < 1 and len(self.minIR) < 1:
+                self.last_peak = 0
+            elif len(self.minIR) < 1:
+                self.last_peak = self.maxIR[-1]
+            else:
+                self.last_peak = self.minIR[-1]
+                 
+            #, minimR, maximR    
+            minimIR, maximIR = self.calcular_minimos(self.filtrado[:,self.last_peak:])
+            self.actualizar_vector_minimos(minimIR, maximIR) #, minimR, maximR
         #else:
             #print("p=", self.P)
         
@@ -915,19 +952,27 @@ class VentanaPrincipal(QMainWindow):
         calculamos la posicion de los maximos y minimos de las ultimos N muestras 
          N = len(data); 
          Return: vector unidimensional 1x500"""
-        _height = 500
-        _maxIR, _ = find_peaks(data[1,:], height= _height, distance=300) # [0, len(data)] + 1segundo
-        _minIR, _ = find_peaks(-data[1,:], height= _height, distance=300)        
+        _distance = 400
+        if len(self.maxIR) > 2 :
+            ritmo_samples = abs(self.minIR[-2] - self.minIR[-1])
+            print(ritmo_samples)
+            self.PPM = abs(60/(ritmo_samples/self.sFreq))
+            _distance = ritmo_samples - 0.1*ritmo_samples
         
-        _maxR, _ = find_peaks(data[0,:],height= _height, distance=300) # [0, len(data)] + 1segundo
-        _minR, _ = find_peaks(-data[0,:],height= _height, distance=300)  
+        _height = 500
+       
+        _maxIR, _ = find_peaks(data[1,:], height= _height, distance=_distance) # [0, len(data)] + 1segundo
+        _minIR, _ = find_peaks(-data[1,:], height= _height, distance=_distance)        
+        
+        #_maxR, _ = find_peaks(data[0,:],height= _height, distance=200) # [0, len(data)] + 1segundo
+        #_minR, _ = find_peaks(-data[0,:],height= _height, distance=200)  
         
         #print(len(_min))
         #print(type(_min[0]))
         #print(_max)
-        return _minIR, _maxIR, _minR, _maxR 
+        return _minIR, _maxIR #, _minR, _maxR 
             
-    def actualizar_vector_minimos(self, minimosIR, maximosIR, minimosR, maximosR):     
+    def actualizar_vector_minimos(self, minimosIR, maximosIR):#, minimosR, maximosR    
         """"
         Recibe vector de minimos de las ultimas 500 muestras adquiridas.
         debe tomar el vector de _min de 1x500 e ir appendeandolos modificando su posicion
@@ -935,26 +980,36 @@ class VentanaPrincipal(QMainWindow):
         """
        
         #CALCULOS PARA CANAL INFRAROJO
-        minimosIR += self.N  
+        minimosIR += self.last_peak  
         #print("minimos =", len(minimos))
+        #print("len_minimosIR_=",len(minimosIR))
+        
         if self.minIR.any() and len(minimosIR) >= 1 :
             
-            if minimosIR[0] - self.minIR[-1]  < 300:
-                self.minIR = np.append(self.minIR , minimosIR[1:],axis=0)
+            if minimosIR[0] - self.minIR[-1]  < 200:
+                minimosIR = minimosIR[1:]
+                #print("elimine un minimo")
+                self.minIR = np.append(self.minIR , minimosIR,axis=0)
             else:
                 self.minIR = np.append(self.minIR , minimosIR,axis=0)
-        else:
-            self.minIR = np.append(self.minIR , minimosIR,axis=0)
         
+        else:
+            #print(minimosIR,"--cero minimos")
+            self.minIR = np.append(self.minIR , minimosIR,axis=0)
+            
+        
+        len_minimosIR = len(minimosIR)
+        #print("len_minimosIR =", len_minimosIR)
         self.minIR = self.minIR.astype(int)
         #print("minimos =", len(minimos))
         #print(self.min)
         
-        maximosIR += self.N  
+        maximosIR += self.last_peak  
         if self.maxIR.any() and len(maximosIR) >= 1 :
             
-            if maximosIR[0] - self.maxIR[-1]  < 300:
-                self.maxIR = np.append(self.maxIR , maximosIR[1:],axis=0)
+            if maximosIR[0] - self.maxIR[-1]  < 200:
+                maximosIR = maximosIR[1:]
+                self.maxIR = np.append(self.maxIR , maximosIR,axis=0)
             else:
                 self.maxIR = np.append(self.maxIR , maximosIR,axis=0)
         else:
@@ -962,29 +1017,34 @@ class VentanaPrincipal(QMainWindow):
        
         
         self.maxIR = self.maxIR.astype(int)
-        #print("maximos =", len(maximos))
+        #print("maximosIR =", len(maximosIR))
         
+        self.calcular_oximetria(len_minimosIR)
+        """
         #CALCULOS CANAL ROJO
-        minimosR += self.N  
+        minimosR += self.last_peak  
         #print("minimos =", len(minimos))
         if self.minR.any() and len(minimosR) >= 1 :
             
-            if minimosR[0] - self.minR[-1]  < 300:
-                self.minR = np.append(self.minR , minimosR[1:],axis=0)
+            if minimosR[0] - self.minR[-1]  < 200:
+                minimosR =  minimosR[1:]
+                self.minR = np.append(self.minR , minimosR,axis=0)
             else:
                 self.minR = np.append(self.minR , minimosR,axis=0)
         else:
             self.minR = np.append(self.minR , minimosR,axis=0)
         
+        len_minimosR = len(minimosR)
+        #print("len_minimosR =", len_minimosR)
         self.minR = self.minR.astype(int)
-        #print("minimos =", len(minimos))
-        #print(self.min)
         
-        maximosR += self.N  
+        
+        maximosR += self.last_peak  
         if self.maxR.any() and len(maximosR) >= 1 :
             
-            if maximosR[0] - self.maxR[-1]  < 300:
-                self.maxR = np.append(self.maxR , maximosR[1:],axis=0)
+            if maximosR[0] - self.maxR[-1]  < 200:
+                maximosR = maximosR[1:]
+                self.maxR = np.append(self.maxR , maximosR,axis=0)
             else:
                 self.maxR = np.append(self.maxR , maximosR,axis=0)
         else:
@@ -994,9 +1054,10 @@ class VentanaPrincipal(QMainWindow):
         self.maxR = self.maxR.astype(int)
         #print("maximos =", len(maximos))
         
-        if self.minIR.any() and self.minR[-1]  :
-            self.calcular_oximetria(self.minIR[-1], self.minR[-1])
-        
+        if self.minIR.any() and self.minIR[-1] and len_minimosIR>0 and len(self.maxIR)>0  :
+            
+            self.calcular_oximetria( len_minimosIR, len_minimosR)
+        """
         """
         linea = pg.InfiniteLine(pos=self.N/self.sFreq, angle=90, movable=False)
         self.gvtemporal.addItem(linea)
@@ -1008,25 +1069,96 @@ class VentanaPrincipal(QMainWindow):
             self.gvtemporal.removeItem(remov_linea)
              
         """
-        self.N += 500
+        #self.N += 500
     
-    def calcular_oximetria(self,pos_minIR, pos_minR):
+    def calcular_oximetria(self,pos_minIR):
+        
+        #print(pos_minIR)
+        #print(pos_minR)
+        # calculos canal INFRAROJO        
+        ACIR = []
+        DCIR = []
+        DELTAIR = []
+        ACR = []
+        DCR = []
+        DELTAR = []
+        a=0
+        for m in range(pos_minIR):
+            a = a-1
+            _pos_minIR = self.minIR[a]
+            _pos_maxIR = self.maxIR[a]
+            _ACIR = self.dataY[1,_pos_maxIR] - self.dataY[1,_pos_minIR]
+            ACIR  = np.append(ACIR,_ACIR)
+            _DCIR = self.dataY[1,_pos_minIR]
+            DCIR = np.append(DCIR,_DCIR)        # DELTAIR[m] = abs(ACIR[m]/DCIR[m])
+            DELTAIR = np.append(DELTAIR,abs(_ACIR/_DCIR))
+            _ACR = self.dataY[0,_pos_maxIR] - self.dataY[0,_pos_minIR]
+            ACR  = np.append(ACR,_ACR)
+            _DCR = self.dataY[1,_pos_minIR]
+            DCR = np.append(DCR , _DCR)       
+            DELTAR = np.append(DELTAR , abs(_ACR/_DCR))
+            
+            
+        #print(len(DELTAIR))
+        ACIR = np.flip(ACIR)
+        DCIR = np.flip(DCIR)
+        self.ACIR = np.append(self.ACIR, ACIR)   
+        ACR = np.flip(ACR)
+        DCR = np.flip(DCR)
+        self.ACR = np.append(self.ACR, ACR) 
+        
+        R = np.array(DELTAR/DELTAIR)
+        self.R0 = R[0]
+        self.R = np.append(self.R , R)
+        
+        """
+        # calculos canal ROJO 
+        ACR = []
+        DCR = []
+        DELTAR = []
+        a=0
+        for m in range(pos_minR):
+            a = a-1
+            #print("valor de m en R= ", m)
+            _pos_minR = self.minR[a]
+            _pos_maxR = self.maxR[a]
+            AC = self.dataY[1,_pos_maxR] - self.dataY[1,_pos_minR]
+            ACR  = np.append(ACR,AC)
+            DC = self.dataY[1,_pos_minR]
+            DCR = np.append(DCR , DC)       
+            DELTAR = np.append(DELTAR , abs(AC/DC))
+        
+        #print(DELTAR)
+        ACR = np.flip(ACR)
+        DCR = np.flip(DCR)
+        self.ACR = np.append(self.ACR, ACR) 
+        
+        R = np.array(DELTAR/DELTAIR)
+        self.R0 = R[0]
+        self.R = np.append(self.R , R)
+        """
+        """     
         _pos_maxIR = np.argmin(self.maxIR > pos_minIR)
         pos_maxIR = self.maxIR[_pos_maxIR]
         ACIR = self.dataY[1,pos_maxIR] - self.dataY[1,pos_minIR]
         DCIR = self.dataY[1,pos_minIR]
         DELTAIR = abs(ACIR/DCIR)
-        #print(DELTAIR)
+        self.ACIR = np.append(self.ACIR, ACIR)
+        #print(DELTAIR) 
+        
         _pos_maxR = np.argmax(self.maxR > pos_minR)
         pos_maxR = self.maxR[_pos_maxR]
         ACR = self.dataY[0,pos_maxR] - self.dataY[0,pos_minR]
         DCR = self.dataY[0,pos_minR]
         DELTAR = abs(ACR/DCR)
+        self.ACR = np.append(self.ACR, ACR)
         #print(DELTAR)
         self.R = DELTAR/DELTAIR
-        print("R=  ",(DELTAR/DELTAIR))
+        #print("dc=  ",abs(DCIR/DCR))
+        #print("ac=  ",abs(ACR/ACIR))
+        #print("R=  ",(DELTAR/DELTAIR))
         
-        pass
+       """
         
     #-----------metodos de ejecucion de los timeout de los timer---------------
         
@@ -1051,6 +1183,9 @@ class VentanaPrincipal(QMainWindow):
             
             self.curva_minimos.setData(x[self.minIR[-20:]], self.filtrado[1,self.minIR[-20:]])
             self.curva_maximos.setData(x[self.maxIR[-20:]], self.filtrado[1,self.maxIR[-20:]])
+            self.curva_minimosR.setData(x[self.minIR[-20:]], self.filtrado[0,self.minIR[-20:]])
+            self.curva_maximosR.setData(x[self.maxIR[-20:]], self.filtrado[0,self.maxIR[-20:]])
+            
             
             self.curva_continua.setData(x[self.minIR[-20:]], self.dataY[1,self.minIR[-20:]])
             
@@ -1058,9 +1193,11 @@ class VentanaPrincipal(QMainWindow):
                 self.canales_psd[i].setData(x , self.filtrado[i,:])
                
             
-            if self.promediar :
-                self.txtcontinua.setText(f"{self.R:.2%}")
-                #self.txtalterna.setText(f"{self.promedio_ac:.2%}")
+            
+            self.txtcontinua.setText(str(round(self.R0,2)))
+                
+            
+            self.txtalterna.setText(str(int(self.PPM)))
             
             QApplication.processEvents()
             #self.barBat.setValue(self.nivelbateria)
@@ -1136,7 +1273,7 @@ class VentanaPrincipal(QMainWindow):
         #print(canales)
         #datos = np.delete(y,(0), axis = 0)
         datos = datos.T
-        datos = datos[:,100:]
+        datos = datos[1:3,:]
         filtrado = False
         print(datos.shape)
         archivo_filtrado = self.archivo_offline.replace("_datos.xlsx","")
@@ -1342,6 +1479,10 @@ class External(QThread): #se crea la clase External que hereda de QThread
         print(main.comando)
         _paq_recib = 0
         _paq_error = 0
+        recibido = main.socket_cliente.recv(603) #recibimos
+        recibido = main.socket_cliente.recv(603) #recibimos
+        recibido = main.socket_cliente.recv(603) #recibimos
+        
         while (main.comando == 'datos'):
             
             recibido = main.socket_cliente.recv(603) #recibimos
