@@ -224,11 +224,11 @@ class VentanaPrincipal(QMainWindow):
         if verificar == recibido[0] :
             print("verificacion correcta")
             #solo actualizar nivel de bateria y fecha
-            self.nivelbateria = int(recibido[2])      #int
+            #self.nivelbateria = int(recibido[2])      #int
             #self.barBat.setMaximum(76,100)
-            self.barBat.setValue(self.nivelbateria)
+            #self.barBat.setValue(self.nivelbateria)
         print("estoy en conectar")
-        print(self.nivelbateria)
+        #print(self.nivelbateria)
         
         #self.timer0.start() #le indicamos que inicie el timer y le pasamos la cantidad 
                                 # de ms que debera contar hasta finalizar y lanzar timeout    
